@@ -16,7 +16,7 @@ export default class TimestampHeader extends React.Component {
     this.state = {
       cdxData: false,
       showDiff: false,
-      showNotFound: false
+      showError: false
     };
 
     this.handleLeftTimestampChange = this.handleLeftTimestampChange.bind(this);
@@ -50,32 +50,28 @@ export default class TimestampHeader extends React.Component {
   }
 
   render () {
-    if (this.state.showNotFound){
-      return(
-        <div>
-          {this.notFound()}
-        </div>);
-    }
-    if (this.state.showDiff) {
-      return(
-        <div className="timestamp-header-view">
-          {this.showTimestampSelector()}
-          {this.exportParams()}
-        </div>
+    if (!this.state.showError) {
+      if (this.state.showDiff) {
+        return (
+          <div className="timestamp-header-view">
+            {this.showTimestampSelector()}
+            {this.exportParams()}
+          </div>
+        );
+      }
+      if (this.state.cdxData) {
+        return (
+          <div className="timestamp-header-view">
+            {this.showTimestampSelector()}
+          </div>
+        );
+      }
+      return (<div>
+        <Loading waybackLoaderPath={this.props.waybackLoaderPath}/>
+        {this.widgetRender()}
+      </div>
       );
     }
-    if (this.state.cdxData) {
-      return (
-        <div className="timestamp-header-view">
-          {this.showTimestampSelector()}
-        </div>
-      );
-    }
-    return (<div>
-      <Loading waybackLoaderPath={this.props.waybackLoaderPath}/>
-      {this.widgetRender()}
-    </div>
-    );
   }
 
   exportParams(){
@@ -105,7 +101,9 @@ export default class TimestampHeader extends React.Component {
           if (data && data.length > 0 ){
             if (data.length === 2) {
               let timestamp = data[1][0];
-              window.location.href = `/diff/${timestamp}//${this.props.site}`;
+              if (this.props.timestampA !== timestamp){
+                window.location.href = `/diff/${timestamp}//${this.props.site}`;
+              }
             }
             this.prepareData(data);
             if (!this.props.isInitial) {
@@ -113,7 +111,7 @@ export default class TimestampHeader extends React.Component {
             }
           } else {
             this.props.snapshotsNotFoundCallback();
-            this.setState({showNotFound:true});
+            this.setState({showError:true});
 
           }
         });
@@ -189,10 +187,6 @@ export default class TimestampHeader extends React.Component {
         </select>
       </div>
     );
-  }
-
-  notFound () {
-    return (<div className="alert alert-warning" role="alert">The Wayback Machine doesn't have {this.props.site} archived.</div>);
   }
 
   showDiffs () {
