@@ -96,7 +96,14 @@ export default class TimestampHeader extends React.Component {
         url = `http://web.archive.org/cdx/search?url=${this.props.site}/&status=200&fl=timestamp,digest&output=json`;
       }
       fetch(url)
-        .then(response => response.json())
+        .then(function(response) {
+          if (response) {
+            if (!response.ok) {
+              throw Error(response.status);
+            }
+            return response.json();
+          }
+        })
         .then((data) => {
           if (data && data.length > 0 ){
             if (data.length === 2) {
@@ -110,10 +117,16 @@ export default class TimestampHeader extends React.Component {
               this.selectValues();
             }
           } else {
-            this.props.snapshotsNotFoundCallback();
+            this.props.errorHandledCallback('404');
+            console.log('widgetRender--setState');
             this.setState({showError:true});
 
           }
+        })
+        .catch(function(error) {
+          this.props.errorHandledCallback(error.message);
+          console.log('widgetRender--setState');
+          this.setState({showError:true});
         });
     }
   }
@@ -190,6 +203,7 @@ export default class TimestampHeader extends React.Component {
   }
 
   showDiffs () {
+    console.log('showDiffs--setState');
     this.setState({showDiff: true});
   }
 

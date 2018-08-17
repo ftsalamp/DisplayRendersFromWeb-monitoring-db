@@ -16,19 +16,23 @@ import ErrorMessage from './erros.jsx';
 export default class DiffContainer extends React.Component {
   timestampsValidated = false;
   redirectToValidatedTimestamps = false;
+  errorCode = '';
+
   constructor (props) {
     super(props);
     this.state = {
       fetchedRaw: null,
-      showNotFound: false
+      showError: false
     };
     this._oneFrame = null;
-    this.snapshotsNotFound = this.snapshotsNotFound.bind(this);
+    this.errorHandled = this.errorHandled.bind(this);
     this.prepareDiffView = this.prepareDiffView.bind(this);
   }
 
-  snapshotsNotFound () {
-    this.setState({showNotFound: true});
+  errorHandled (errorCode) {
+    this.errorCode = errorCode;
+    console.log('errorHandled--setState');
+    this.setState({showError: true});
   }
 
   render () {
@@ -38,40 +42,42 @@ export default class DiffContainer extends React.Component {
     if (this.redirectToValidatedTimestamps) {
       return(this.renderRedirect());
     }
-    if (!this.timestampsValidated) {
-      {this.checkTimestamps();}
-    }
-    if (this.state.showNotFound){
+    if (this.state.showError){
       return(
         <ErrorMessage site ={this.props.site} code ={'404'}/>);
     }
-    if (this.props.timestampA && this.props.timestampB) {
+    if (this.timestampsValidated) {
+      if (this.props.timestampA && this.props.timestampB) {
+        return (
+          <div className="diffcontainer-view">
+            <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
+            {this.prepareDiffView()}
+            <DiffFooter/>
+          </div>);
+      }
+      if (this.props.timestampA) {
+        return (
+          <div className="diffcontainer-view">
+            <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
+            {this.showOneSnapshot(true, this.props.timestampA)}
+          </div>);
+      }
+      if (this.props.timestampB) {
+        return (
+          <div className="diffcontainer-view">
+            <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
+            {this.showOneSnapshot(false, this.props.timestampB)}
+          </div>);
+      }
       return (
         <div className="diffcontainer-view">
-          <TimestampHeader {...this.props} snapshotsNotFoundCallback={this.snapshotsNotFound}/>
-          {this.prepareDiffView()}
-          <DiffFooter/>
-        </div>);
+          <TimestampHeader isInitial={true} {...this.props} errorHandledCallback={this.errorHandled}/>
+        </div>
+      );
+    } else {
+      {this.checkTimestamps();}
+      return (<Loading waybackLoaderPath={this.props.waybackLoaderPath}/>);
     }
-    if (this.props.timestampA) {
-      return (
-        <div className="diffcontainer-view">
-          <TimestampHeader {...this.props} snapshotsNotFoundCallback={this.snapshotsNotFound}/>
-          {this.showOneSnapshot(true, this.props.timestampA)}
-        </div>);
-    }
-    if (this.props.timestampB) {
-      return (
-        <div className="diffcontainer-view">
-          <TimestampHeader {...this.props} snapshotsNotFoundCallback={this.snapshotsNotFound}/>
-          {this.showOneSnapshot(false, this.props.timestampB)}
-        </div>);
-    }
-    return (
-      <div className="diffcontainer-view">
-        <TimestampHeader isInitial={true} {...this.props} snapshotsNotFoundCallback={this.snapshotsNotFound}/>
-      </div>
-    );
   }
 
   renderRedirect () {
@@ -79,7 +85,7 @@ export default class DiffContainer extends React.Component {
     return (<Redirect to={this.state.newURL} />);
   }
 
-  showOneSnapshot (left, timestamp) {
+  showOneSnapshot (isLeft, timestamp) {
     if(this.state.fetchedRaw){
       var urlB;
       if(this.props.noSnapshotURL) {
@@ -87,7 +93,7 @@ export default class DiffContainer extends React.Component {
       } else {
         urlB= 'https://users.it.teithe.gr/~it133996/noSnapshot.html';
       }
-      if (left){
+      if (isLeft){
         return(
           <div className={'side-by-side-render'}>
             <iframe height={window.innerHeight} onLoad={()=>{this.handleHeight();}}
@@ -110,53 +116,29 @@ export default class DiffContainer extends React.Component {
     }
     let urlA = 'http://web.archive.org/web/' + timestamp + '/' + this.props.site;
     fetch(urlA)
-      .then(response => {
-        if (response.ok) {
-          return response.text();
-        }
-        throw Error(response.status);
-      }).then((responseText) => {
-        this.setState({fetchedRaw: responseText});
-      })
-      .catch(function(error) {
-        console.log('1--I am here!************');
-        console.log(error);
-        if (error.message === '404'){
-          console.log('Not found!');
-        }
-        else {
-          console.log('Other error!');
-        }
-      });
+      .then(response => {this.checkResponse(response);})
+      .then(response => {return response.text();})
+      .catch(error => {this.errorHandled(error.message);});
+
     return (<Loading waybackLoaderPath={this.props.waybackLoaderPath}/>);
   }
 
   prepareDiffView(){
-    // if (!this.state.showNotFound){
     let urlA = 'http://web.archive.org/web/' + this.props.timestampA + '/' + this.props.site;
     let urlB = 'http://web.archive.org/web/' + this.props.timestampB + '/' + this.props.site;
 
     return(<DiffView webMonitoringProcessingURL={this.props.webMonitoringProcessingURL}
       webMonitoringProcessingPort={this.props.webMonitoringProcessingPort} page={{url: this.props.site}}
       diffType={'SIDE_BY_SIDE_RENDERED'} a={urlA} b={urlB} waybackLoaderPath={this.props.waybackLoaderPath}/>);
-    // }
   }
 
   checkTimestamps () {
-    console.log('Check timestamps****');
     var urlA, urlB;
     if (this.props.timestampA){
       urlA = 'http://web.archive.org/web/' + this.props.timestampA + '/' + this.props.site;
     }
     fetch(urlA, {redirect: 'follow'})
-      .then(function(response) {
-        if (response) {
-          if (!response.ok) {
-            throw Error(response.statusText);
-          }
-          return response;
-        }
-      })
+      .then(response => {this.checkResponse(response);})
       .then(response => {
         if (response) {
           urlA = response.url;
@@ -164,6 +146,7 @@ export default class DiffContainer extends React.Component {
           if (this.props.timestampB) {
             urlB = 'http://web.archive.org/web/' + this.props.timestampB + '/' + this.props.site;
             fetch(urlB, {redirect: 'follow'})
+              .then(response => {this.checkResponse(response);})
               .then(response => {
                 urlB = response.url;
                 let fetchedTimestampB = urlB.split('/')[4];
@@ -176,6 +159,7 @@ export default class DiffContainer extends React.Component {
                   }
                   this.timestampsValidated = true;
                   this.redirectToValidatedTimestamps = true;
+                  console.log('checkTimestamps--setState');
                   this.setState({newURL: '/diff/' + fetchedTimestampA + '/' + fetchedTimestampB + '/' + this.props.site});
                 }
               });
@@ -183,10 +167,7 @@ export default class DiffContainer extends React.Component {
           this.timestampsValidated = true;
         }
       })
-      .catch(function(error) {
-        console.log('2--I am here!************');
-        console.log(error);
-      });
+      .catch(error => {this.errorHandled(error.message);});
   }
 
   handleHeight () {
@@ -206,4 +187,14 @@ export default class DiffContainer extends React.Component {
   invalidURL () {
     return (<div className="alert alert-danger" role="alert"><b>Oh snap!</b> Invalid URL {this.props.site}</div>);
   }
+
+  checkResponse(response) {
+    if (response) {
+      if (!response.ok) {
+        throw Error(response.status);
+      }
+      return response;
+    }
+  }
+
 }
