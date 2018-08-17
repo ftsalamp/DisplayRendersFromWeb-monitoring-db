@@ -46,37 +46,37 @@ export default class DiffContainer extends React.Component {
       return(
         <ErrorMessage site ={this.props.site} code ={'404'}/>);
     }
-    if (this.timestampsValidated) {
-      if (this.props.timestampA && this.props.timestampB) {
-        return (
-          <div className="diffcontainer-view">
-            <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
-            {this.prepareDiffView()}
-            <DiffFooter/>
-          </div>);
-      }
-      if (this.props.timestampA) {
-        return (
-          <div className="diffcontainer-view">
-            <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
-            {this.showOneSnapshot(true, this.props.timestampA)}
-          </div>);
-      }
-      if (this.props.timestampB) {
-        return (
-          <div className="diffcontainer-view">
-            <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
-            {this.showOneSnapshot(false, this.props.timestampB)}
-          </div>);
-      }
+    if (!this.props.timestampA && !this.props.timestampB){
       return (
         <div className="diffcontainer-view">
           <TimestampHeader isInitial={true} {...this.props} errorHandledCallback={this.errorHandled}/>
         </div>
       );
-    } else {
+    }
+    if (!this.timestampsValidated) {
       {this.checkTimestamps();}
-      return (<Loading waybackLoaderPath={this.props.waybackLoaderPath}/>);
+    }
+    if (this.props.timestampA && this.props.timestampB) {
+      return (
+        <div className="diffcontainer-view">
+          <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
+          {this.prepareDiffView()}
+          <DiffFooter/>
+        </div>);
+    }
+    if (this.props.timestampA) {
+      return (
+        <div className="diffcontainer-view">
+          <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
+          {this.showOneSnapshot(true, this.props.timestampA)}
+        </div>);
+    }
+    if (this.props.timestampB) {
+      return (
+        <div className="diffcontainer-view">
+          <TimestampHeader {...this.props} errorHandledCallback={this.errorHandled}/>
+          {this.showOneSnapshot(false, this.props.timestampB)}
+        </div>);
     }
   }
 
@@ -116,8 +116,11 @@ export default class DiffContainer extends React.Component {
     }
     let urlA = 'http://web.archive.org/web/' + timestamp + '/' + this.props.site;
     fetch(urlA)
-      .then(response => {this.checkResponse(response);})
+      .then(response => {return this.checkResponse(response);})
       .then(response => {return response.text();})
+      .then((responseText) => {
+        this.setState({fetchedRaw: responseText});
+      })
       .catch(error => {this.errorHandled(error.message);});
 
     return (<Loading waybackLoaderPath={this.props.waybackLoaderPath}/>);
@@ -134,37 +137,34 @@ export default class DiffContainer extends React.Component {
 
   checkTimestamps () {
     var urlA, urlB;
+    var fetchedTimestampB = '';
     if (this.props.timestampA){
       urlA = 'http://web.archive.org/web/' + this.props.timestampA + '/' + this.props.site;
     }
     fetch(urlA, {redirect: 'follow'})
-      .then(response => {this.checkResponse(response);})
+      .then(response => {return this.checkResponse(response);})
       .then(response => {
         if (response) {
           urlA = response.url;
           let fetchedTimestampA = urlA.split('/')[4];
+          if (this.props.timestampA !== fetchedTimestampA) {
+            this.redirectToValidatedTimestamps = true;
+          }
           if (this.props.timestampB) {
             urlB = 'http://web.archive.org/web/' + this.props.timestampB + '/' + this.props.site;
             fetch(urlB, {redirect: 'follow'})
-              .then(response => {this.checkResponse(response);})
+              .then(response => {return this.checkResponse(response);})
               .then(response => {
                 urlB = response.url;
-                let fetchedTimestampB = urlB.split('/')[4];
-
-                if (this.props.timestampA !== fetchedTimestampA || this.props.timestampB !== fetchedTimestampB) {
-                  let tempURL = urlA.split('/');
-                  var url = '';
-                  for (var i = 7; i <= (tempURL.length - 1); i++) {
-                    url = url + tempURL[i];
-                  }
-                  this.timestampsValidated = true;
+                fetchedTimestampB = urlB.split('/')[4];
+                if (this.props.timestampB !== fetchedTimestampB) {
                   this.redirectToValidatedTimestamps = true;
-                  console.log('checkTimestamps--setState');
-                  this.setState({newURL: '/diff/' + fetchedTimestampA + '/' + fetchedTimestampB + '/' + this.props.site});
                 }
               });
           }
           this.timestampsValidated = true;
+          console.log('checkTimestamps--setState');
+          this.setState({newURL: '/diff/' + fetchedTimestampA + '/' + fetchedTimestampB + '/' + this.props.site});
         }
       })
       .catch(error => {this.errorHandled(error.message);});
